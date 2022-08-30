@@ -111,7 +111,7 @@ pub(crate) type SessionState = HashMap<String, String>;
 impl SessionStore for SqlxPostgresqlSessionStore {
     async fn load(&self, session_key: &SessionKey) -> Result<Option<SessionState>, LoadError> {
         let key = (self.configuration.cache_keygen)(session_key.as_ref());
-        let row = sqlx::query("SELECT session_state FROM sessions WHERE key = $1 AND expiry > NOW()")
+        let row = sqlx::query("SELECT session_state FROM sessions WHERE key = $1 AND expires > NOW()")
             .bind( key)
             .fetch_optional(&self.client_pool)
             .await
@@ -133,11 +133,11 @@ impl SessionStore for SqlxPostgresqlSessionStore {
             .map_err(SaveError::Serialization)?;
         let key = generate_session_key();
         let cache_key = (self.configuration.cache_keygen)(key.as_ref());
-        let expiry = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds() as i64);
-        sqlx::query("INSERT INTO sessions(key, value, expiry) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING")
+        let expires = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds() as i64);
+        sqlx::query("INSERT INTO sessions(key, session_state, expires) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING")
             .bind(cache_key)
             .bind( body)
-            .bind( expiry)
+            .bind( expires)
             .execute(&self.client_pool)
             .await
             .map_err(Into::into)
@@ -148,10 +148,10 @@ impl SessionStore for SqlxPostgresqlSessionStore {
     async fn update(&self, session_key: SessionKey, session_state: SessionState, ttl: &Duration) -> Result<SessionKey, UpdateError> {
         let body = serde_json::to_string(&session_state).map_err(Into::into).map_err(UpdateError::Serialization)?;
         let cache_key = (self.configuration.cache_keygen)(session_key.as_ref());
-        let new_expiry = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds());
-        sqlx::query("UPDATE sessions SET value = $1, expiry = $2 WHERE key = $3")
+        let new_expires = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds());
+        sqlx::query("UPDATE sessions SET session_state = $1, expires = $2 WHERE key = $3")
             .bind( body)
-            .bind( new_expiry)
+            .bind( new_expires)
             .bind( cache_key)
             .execute(&self.client_pool)
             .await
@@ -161,10 +161,10 @@ impl SessionStore for SqlxPostgresqlSessionStore {
     }
 
     async fn update_ttl(&self, session_key: &SessionKey, ttl: &Duration) -> Result<(), anyhow::Error> {
-        let new_expiry = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds() as i64);
+        let new_expires = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds() as i64);
         let key = (self.configuration.cache_keygen)(session_key.as_ref());
-        sqlx::query("UPDATE sessions SET expiry = $1 WHERE key = $2")
-            .bind(new_expiry)
+        sqlx::query("UPDATE sessions SET expires = $1 WHERE key = $2")
+            .bind(new_expires)
             .bind( key)
             .execute(&self.client_pool)
             .await

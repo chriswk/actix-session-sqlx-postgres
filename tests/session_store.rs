@@ -48,10 +48,12 @@ pub mod tests {
         .expect("Could not create table");
         let mut session = HashMap::new();
         session.insert("key".to_string(), "value".to_string());
-        assert!(postgres_store
+        let data = postgres_store
             .save(session, &time::Duration::days(1))
-            .await
+            .await;
+        println!("{:#?}", data);
+        assert!(data
             .is_ok());
-//        acceptance_test_suite(move || postgres_store.clone(), true).await;
+        //acceptance_test_suite(move || postgres_store.clone(), true).await;
     }
 }
