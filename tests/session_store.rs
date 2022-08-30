@@ -1,3 +1,4 @@
+mod test_helpers;
 #[cfg(test)]
 pub mod tests {
     use actix_session::storage::SessionStore;
@@ -54,6 +55,6 @@ pub mod tests {
         println!("{:#?}", data);
         assert!(data
             .is_ok());
-        //acceptance_test_suite(move || postgres_store.clone(), true).await;
+        super::test_helpers::acceptance_test_suite(move || postgres_store.clone(), true).await;
     }
 }

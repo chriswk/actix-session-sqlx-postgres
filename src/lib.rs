@@ -7,6 +7,7 @@ use sqlx::postgres::PgPoolOptions;
 use rand::{distributions::Alphanumeric, rngs::OsRng, Rng as _};
 use time::Duration;
 use serde_json;
+use crate::ConnectionData::{ConnectionPool, ConnectionString};
 
 /// Use Postgres via Sqlx as session storage backend.
 ///
@@ -39,8 +40,39 @@ use serde_json;
 ///         .run()
 ///         .await
 /// }
-
-
+/// ```
+/// If you already have a connection pool, you can use something like
+/*/// ```no_run
+/// use actix_web::{web, App, HttpServer, HttpResponse, Error};
+/// use actix_session_sqlx::SqlxPostgresqlSessionStore;
+/// use actix_session::SessionMiddleware;
+/// use actix_web::cookie::Key;
+///
+/// // The secret key would usually be read from a configuration file/environment variables.
+/// fn get_secret_key() -> Key {
+///     # todo!()
+///     // [...]
+/// }
+/// #[actix_web::main]
+/// async fn main() -> std::io::Result<()> {
+///     use sqlx::postgres::PgPoolOptions;
+/// let secret_key = get_secret_key();
+///     let pool = PgPoolOptions::find_some_way_to_build_your_pool(psql_connection_string);
+///     let store = SqlxPostgresqlSessionStore::from_pool(pool).await.expect("Could not build session store");
+///
+///     HttpServer::new(move ||
+///             App::new()
+///             .wrap(SessionMiddleware::new(
+///                 store.clone(),
+///                 secret_key.clone()
+///             ))
+///             .default_service(web::to(|| HttpResponse::Ok())))
+///         .bind(("127.0.0.1", 8080))?
+///         .run()
+///         .await
+/// }
+/// ```
+*/
 #[derive(Clone)]
 struct CacheConfiguration {
     cache_keygen: Arc<dyn Fn(&str) -> String + Send + Sync>,
@@ -74,7 +106,7 @@ fn generate_session_key() -> SessionKey {
 impl SqlxPostgresqlSessionStore {
     pub fn builder<S: Into<String>>(connection_string: S) -> SqlxPostgresqlSessionStoreBuilder {
         SqlxPostgresqlSessionStoreBuilder {
-            connection_string: connection_string.into(),
+            connection_data: ConnectionString(connection_string.into()),
             configuration: CacheConfiguration::default()
         }
     }
@@ -82,27 +114,46 @@ impl SqlxPostgresqlSessionStore {
     pub async fn new<S: Into<String>>(connection_string: S) -> Result<SqlxPostgresqlSessionStore, anyhow::Error> {
         Self::builder(connection_string).build().await
     }
+
+    pub async fn from_pool(pool: Pool<Postgres>) -> SqlxPostgresqlSessionStoreBuilder {
+        SqlxPostgresqlSessionStoreBuilder {
+            connection_data: ConnectionPool(pool.clone()),
+            configuration: CacheConfiguration::default()
+        }
+    }
+}
+
+pub enum ConnectionData {
+    ConnectionString(String),
+    ConnectionPool(Pool<Postgres>)
 }
 
 #[must_use]
 pub struct SqlxPostgresqlSessionStoreBuilder {
-    connection_string: String,
+    connection_data: ConnectionData,
     configuration: CacheConfiguration,
 }
 
 impl SqlxPostgresqlSessionStoreBuilder {
     pub async fn build(self) -> Result<SqlxPostgresqlSessionStore, anyhow::Error> {
-        PgPoolOptions::new()
-            .max_connections(1)
-            .connect(self.connection_string.as_str())
-            .await
-            .map_err(Into::into)
-            .map(|pool| {
-                SqlxPostgresqlSessionStore {
-                    client_pool: pool,
-                    configuration: self.configuration
-                }
+        match self.connection_data {
+            ConnectionString(conn_string) => {
+                PgPoolOptions::new()
+                    .max_connections(1)
+                    .connect(conn_string.as_str())
+                    .await
+                    .map_err(Into::into)
+                    .map(|pool| {
+                        SqlxPostgresqlSessionStore {
+                            client_pool: pool,
+                            configuration: self.configuration
+                        }
+                    })
+            },
+            ConnectionPool(pool) => Ok(SqlxPostgresqlSessionStore {
+                client_pool: pool, configuration: self.configuration
             })
+        }
     }
 }
 pub(crate) type SessionState = HashMap<String, String>;
