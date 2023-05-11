@@ -15,9 +15,9 @@ pub fn key() -> Key {
 /// It should be to `false` if the backend allows multiple cookies to be active
 /// at the same time (e.g. cookie store backend).
 pub async fn acceptance_test_suite<F, Store>(store_builder: F, is_invalidation_supported: bool)
-    where
-        Store: SessionStore + 'static,
-        F: Fn() -> Store + Clone + Send + 'static,
+where
+    Store: SessionStore + 'static,
+    F: Fn() -> Store + Clone + Send + 'static,
 {
     for policy in &[
         CookieContentSecurity::Signed,
@@ -25,27 +25,27 @@ pub async fn acceptance_test_suite<F, Store>(store_builder: F, is_invalidation_s
     ] {
         println!("Using {:?} as cookie content security policy.", policy);
         acceptance_tests::basic_workflow(store_builder.clone(), *policy).await;
-        acceptance_tests::expiration_is_refreshed_on_changes(store_builder.clone(), *policy)
-            .await;
+        acceptance_tests::expiration_is_refreshed_on_changes(store_builder.clone(), *policy).await;
         acceptance_tests::expiration_is_always_refreshed_if_configured_to_refresh_on_every_request(
             store_builder.clone(),
             *policy,
         )
-            .await;
+        .await;
         acceptance_tests::complex_workflow(
             store_builder.clone(),
             is_invalidation_supported,
             *policy,
         )
-            .await;
+        .await;
         acceptance_tests::guard(store_builder.clone(), *policy).await;
     }
 }
 
 mod acceptance_tests {
+    use super::key;
     use actix_session::config::{CookieContentSecurity, PersistentSession, TtlExtensionPolicy};
-    use actix_session::{Session, SessionExt, SessionMiddleware};
     use actix_session::storage::SessionStore;
+    use actix_session::{Session, SessionExt, SessionMiddleware};
     use actix_web::{
         cookie::time,
         dev::{Service, ServiceResponse},
@@ -55,12 +55,9 @@ mod acceptance_tests {
     };
     use serde::{Deserialize, Serialize};
     use serde_json::json;
-    use super::key;
 
-    pub(super) async fn basic_workflow<F, Store>(
-        store_builder: F,
-        policy: CookieContentSecurity,
-    ) where
+    pub(super) async fn basic_workflow<F, Store>(store_builder: F, policy: CookieContentSecurity)
+    where
         Store: SessionStore + 'static,
         F: Fn() -> Store + Clone + Send + 'static,
     {
@@ -73,8 +70,7 @@ mod acceptance_tests {
                         .cookie_domain(Some("localhost".into()))
                         .cookie_content_security(policy)
                         .session_lifecycle(
-                            PersistentSession::default()
-                                .session_ttl(time::Duration::seconds(100)),
+                            PersistentSession::default().session_ttl(time::Duration::seconds(100)),
                         )
                         .build(),
                 )
@@ -87,7 +83,7 @@ mod acceptance_tests {
                     format!("counter: {}", val)
                 })),
         )
-            .await;
+        .await;
 
         let request = test::TestRequest::get().to_request();
         let response = app.call(request).await.unwrap();
@@ -120,9 +116,7 @@ mod acceptance_tests {
                         .session_lifecycle(
                             PersistentSession::default()
                                 .session_ttl(session_ttl)
-                                .session_ttl_extension_policy(
-                                    TtlExtensionPolicy::OnEveryRequest,
-                                ),
+                                .session_ttl_extension_policy(TtlExtensionPolicy::OnEveryRequest),
                         )
                         .build(),
                 )
@@ -132,7 +126,7 @@ mod acceptance_tests {
                 }))
                 .service(web::resource("/test/").to(|| async move { "no-changes-in-session" })),
         )
-            .await;
+        .await;
 
         // Create session
         let request = test::TestRequest::get().to_request();
@@ -165,9 +159,7 @@ mod acceptance_tests {
                 .wrap(
                     SessionMiddleware::builder(store_builder(), key())
                         .cookie_content_security(policy)
-                        .session_lifecycle(
-                            PersistentSession::default().session_ttl(session_ttl),
-                        )
+                        .session_lifecycle(PersistentSession::default().session_ttl(session_ttl))
                         .build(),
                 )
                 .service(web::resource("/").to(|ses: Session| async move {
@@ -176,7 +168,7 @@ mod acceptance_tests {
                 }))
                 .service(web::resource("/test/").to(|| async move { "no-changes-in-session" })),
         )
-            .await;
+        .await;
 
         let request = test::TestRequest::get().to_request();
         let response = app.call(request).await.unwrap();
@@ -196,9 +188,9 @@ mod acceptance_tests {
     }
 
     pub(super) async fn guard<F, Store>(store_builder: F, policy: CookieContentSecurity)
-        where
-            Store: SessionStore + 'static,
-            F: Fn() -> Store + Clone + Send + 'static,
+    where
+        Store: SessionStore + 'static,
+        F: Fn() -> Store + Clone + Send + 'static,
     {
         let srv = actix_test::start(move || {
             App::new()
@@ -295,9 +287,7 @@ mod acceptance_tests {
                     SessionMiddleware::builder(store_builder(), key())
                         .cookie_name("test-session".into())
                         .cookie_content_security(policy)
-                        .session_lifecycle(
-                            PersistentSession::default().session_ttl(session_ttl),
-                        )
+                        .session_lifecycle(PersistentSession::default().session_ttl(session_ttl))
                         .build(),
                 )
                 .wrap(middleware::Logger::default())
@@ -518,7 +508,7 @@ mod acceptance_tests {
             .get::<i32>("counter")
             .unwrap_or(Some(0))
             .map_or(1, |inner| inner + 1);
-        session.insert("counter", &counter)?;
+        session.insert("counter", counter)?;
 
         Ok(HttpResponse::Ok().json(&IndexResponse { user_id, counter }))
     }
@@ -570,10 +560,7 @@ mod acceptance_tests {
 
     impl ServiceResponseExt for ServiceResponse {
         fn get_cookie(&self, cookie_name: &str) -> Option<actix_web::cookie::Cookie<'_>> {
-            self.response()
-                .cookies()
-                .into_iter()
-                .find(|c| c.name() == cookie_name)
+            self.response().cookies().find(|c| c.name() == cookie_name)
         }
     }
 }

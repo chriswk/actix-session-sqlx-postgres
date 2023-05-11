@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use crate::ConnectionData::{ConnectionPool, ConnectionString};
 use actix_session::storage::{LoadError, SaveError, SessionKey, SessionStore, UpdateError};
 use chrono::Utc;
-use sqlx::{Pool, Postgres, Row};
-use sqlx::postgres::PgPoolOptions;
 use rand::{distributions::Alphanumeric, rngs::OsRng, Rng as _};
+use serde_json::{self, Value};
+use sqlx::postgres::PgPoolOptions;
+use sqlx::{Pool, Postgres, Row};
+use std::collections::HashMap;
+use std::sync::Arc;
 use time::Duration;
-use serde_json;
-use crate::ConnectionData::{ConnectionPool, ConnectionString};
 
 /// Use Postgres via Sqlx as session storage backend.
 ///
@@ -107,25 +107,27 @@ impl SqlxPostgresqlSessionStore {
     pub fn builder<S: Into<String>>(connection_string: S) -> SqlxPostgresqlSessionStoreBuilder {
         SqlxPostgresqlSessionStoreBuilder {
             connection_data: ConnectionString(connection_string.into()),
-            configuration: CacheConfiguration::default()
+            configuration: CacheConfiguration::default(),
         }
     }
 
-    pub async fn new<S: Into<String>>(connection_string: S) -> Result<SqlxPostgresqlSessionStore, anyhow::Error> {
+    pub async fn new<S: Into<String>>(
+        connection_string: S,
+    ) -> Result<SqlxPostgresqlSessionStore, anyhow::Error> {
         Self::builder(connection_string).build().await
     }
 
     pub async fn from_pool(pool: Pool<Postgres>) -> SqlxPostgresqlSessionStoreBuilder {
         SqlxPostgresqlSessionStoreBuilder {
-            connection_data: ConnectionPool(pool.clone()),
-            configuration: CacheConfiguration::default()
+            connection_data: ConnectionPool(pool),
+            configuration: CacheConfiguration::default(),
         }
     }
 }
 
 pub enum ConnectionData {
     ConnectionString(String),
-    ConnectionPool(Pool<Postgres>)
+    ConnectionPool(Pool<Postgres>),
 }
 
 #[must_use]
@@ -137,22 +139,19 @@ pub struct SqlxPostgresqlSessionStoreBuilder {
 impl SqlxPostgresqlSessionStoreBuilder {
     pub async fn build(self) -> Result<SqlxPostgresqlSessionStore, anyhow::Error> {
         match self.connection_data {
-            ConnectionString(conn_string) => {
-                PgPoolOptions::new()
-                    .max_connections(1)
-                    .connect(conn_string.as_str())
-                    .await
-                    .map_err(Into::into)
-                    .map(|pool| {
-                        SqlxPostgresqlSessionStore {
-                            client_pool: pool,
-                            configuration: self.configuration
-                        }
-                    })
-            },
+            ConnectionString(conn_string) => PgPoolOptions::new()
+                .max_connections(1)
+                .connect(conn_string.as_str())
+                .await
+                .map_err(Into::into)
+                .map(|pool| SqlxPostgresqlSessionStore {
+                    client_pool: pool,
+                    configuration: self.configuration,
+                }),
             ConnectionPool(pool) => Ok(SqlxPostgresqlSessionStore {
-                client_pool: pool, configuration: self.configuration
-            })
+                client_pool: pool,
+                configuration: self.configuration,
+            }),
         }
     }
 }
@@ -162,33 +161,40 @@ pub(crate) type SessionState = HashMap<String, String>;
 impl SessionStore for SqlxPostgresqlSessionStore {
     async fn load(&self, session_key: &SessionKey) -> Result<Option<SessionState>, LoadError> {
         let key = (self.configuration.cache_keygen)(session_key.as_ref());
-        let row = sqlx::query("SELECT session_state FROM sessions WHERE key = $1 AND expires > NOW()")
-            .bind( key)
-            .fetch_optional(&self.client_pool)
-            .await
-            .map_err(Into::into)
-            .map_err(LoadError::Other)?;
+        let row =
+            sqlx::query("SELECT session_state FROM sessions WHERE key = $1 AND expires > NOW()")
+                .bind(key)
+                .fetch_optional(&self.client_pool)
+                .await
+                .map_err(Into::into)
+                .map_err(LoadError::Other)?;
         match row {
             None => Ok(None),
             Some(r) => {
-                let data: String = r.get("session_state");
-                let state: SessionState = serde_json::from_str(&data).map_err(Into::into).map_err(LoadError::Deserialization)?;
+                let data: Value = r.get("session_state");
+                let state: SessionState = serde_json::from_value(data)
+                    .map_err(Into::into)
+                    .map_err(LoadError::Deserialization)?;
                 Ok(Some(state))
             }
         }
     }
 
-    async fn save(&self, session_state: SessionState, ttl: &Duration) -> Result<SessionKey, SaveError> {
-        let body = serde_json::to_string(&session_state)
+    async fn save(
+        &self,
+        session_state: SessionState,
+        ttl: &Duration,
+    ) -> Result<SessionKey, SaveError> {
+        let body = serde_json::to_value(&session_state)
             .map_err(Into::into)
             .map_err(SaveError::Serialization)?;
         let key = generate_session_key();
         let cache_key = (self.configuration.cache_keygen)(key.as_ref());
-        let expires = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds() as i64);
+        let expires = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds());
         sqlx::query("INSERT INTO sessions(key, session_state, expires) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING")
             .bind(cache_key)
-            .bind( body)
-            .bind( expires)
+            .bind(body)
+            .bind(expires)
             .execute(&self.client_pool)
             .await
             .map_err(Into::into)
@@ -196,14 +202,21 @@ impl SessionStore for SqlxPostgresqlSessionStore {
         Ok(key)
     }
 
-    async fn update(&self, session_key: SessionKey, session_state: SessionState, ttl: &Duration) -> Result<SessionKey, UpdateError> {
-        let body = serde_json::to_string(&session_state).map_err(Into::into).map_err(UpdateError::Serialization)?;
+    async fn update(
+        &self,
+        session_key: SessionKey,
+        session_state: SessionState,
+        ttl: &Duration,
+    ) -> Result<SessionKey, UpdateError> {
+        let body = serde_json::to_value(&session_state)
+            .map_err(Into::into)
+            .map_err(UpdateError::Serialization)?;
         let cache_key = (self.configuration.cache_keygen)(session_key.as_ref());
         let new_expires = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds());
         sqlx::query("UPDATE sessions SET session_state = $1, expires = $2 WHERE key = $3")
-            .bind( body)
-            .bind( new_expires)
-            .bind( cache_key)
+            .bind(body)
+            .bind(new_expires)
+            .bind(cache_key)
             .execute(&self.client_pool)
             .await
             .map_err(Into::into)
@@ -211,12 +224,16 @@ impl SessionStore for SqlxPostgresqlSessionStore {
         Ok(session_key)
     }
 
-    async fn update_ttl(&self, session_key: &SessionKey, ttl: &Duration) -> Result<(), anyhow::Error> {
-        let new_expires = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds() as i64);
+    async fn update_ttl(
+        &self,
+        session_key: &SessionKey,
+        ttl: &Duration,
+    ) -> Result<(), anyhow::Error> {
+        let new_expires = Utc::now() + chrono::Duration::seconds(ttl.whole_seconds());
         let key = (self.configuration.cache_keygen)(session_key.as_ref());
         sqlx::query("UPDATE sessions SET expires = $1 WHERE key = $2")
             .bind(new_expires)
-            .bind( key)
+            .bind(key)
             .execute(&self.client_pool)
             .await
             .map_err(Into::into)

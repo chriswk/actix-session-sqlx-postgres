@@ -40,7 +40,7 @@ pub mod tests {
         sqlx::query(
             r#"CREATE TABLE sessions(
              key TEXT PRIMARY KEY NOT NULL,
-             session_state TEXT,
+             session_state JSONB,
              expires TIMESTAMP WITH TIME ZONE NOT NULL
         );"#,
         )
@@ -49,12 +49,9 @@ pub mod tests {
         .expect("Could not create table");
         let mut session = HashMap::new();
         session.insert("key".to_string(), "value".to_string());
-        let data = postgres_store
-            .save(session, &time::Duration::days(1))
-            .await;
+        let data = postgres_store.save(session, &time::Duration::days(1)).await;
         println!("{:#?}", data);
-        assert!(data
-            .is_ok());
+        assert!(data.is_ok());
         super::test_helpers::acceptance_test_suite(move || postgres_store.clone(), true).await;
     }
 }
