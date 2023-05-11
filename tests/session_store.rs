@@ -2,7 +2,7 @@ mod test_helpers;
 #[cfg(test)]
 pub mod tests {
     use actix_session::storage::SessionStore;
-    use actix_session_sqlx::SqlxPostgresqlSessionStore;
+    use actix_session_sqlx_postgres::SqlxPostgresqlSessionStore;
     use sqlx::postgres::PgPoolOptions;
     use std::collections::HashMap;
     use testcontainers::clients;

@@ -161,7 +161,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-session-sqlx"
+name = "actix-session-sqlx-postgres"
 version = "0.1.0"
 dependencies = [
  "actix-session",

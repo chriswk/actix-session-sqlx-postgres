@@ -13,7 +13,7 @@ use time::Duration;
 ///
 /// ```no_run
 /// use actix_web::{web, App, HttpServer, HttpResponse, Error};
-/// use actix_session_sqlx::SqlxPostgresqlSessionStore;
+/// use actix_session_sqlx_postgres::SqlxPostgresqlSessionStore;
 /// use actix_session::SessionMiddleware;
 /// use actix_web::cookie::Key;
 ///
@@ -44,7 +44,7 @@ use time::Duration;
 /// If you already have a connection pool, you can use something like
 /*/// ```no_run
 /// use actix_web::{web, App, HttpServer, HttpResponse, Error};
-/// use actix_session_sqlx::SqlxPostgresqlSessionStore;
+/// use actix_session_sqlx_postgres::SqlxPostgresqlSessionStore;
 /// use actix_session::SessionMiddleware;
 /// use actix_web::cookie::Key;
 ///
