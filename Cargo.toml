@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Christopher Kolstad <git@chriswk.no>", "Simon Hornby <liquidwicked64@gmail.com>"]
 description = "Actix Session Sqlx Postgres is a Sqlx Postgres implementation of the ActixSession Store trait"
-license = "Apache 2.0"
+license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
