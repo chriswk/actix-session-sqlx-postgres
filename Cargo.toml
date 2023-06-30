@@ -9,18 +9,18 @@ license = "Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-session = "0.7.1"
-anyhow = "1.0.62"
-async-trait = "0.1.57"
-chrono = { version = "0.4.19", features = ["serde"] }
+actix-session = "0.7.2"
+anyhow = "1.0.71"
+async-trait = "0.1.68"
+chrono = { version = "0.4.26", features = ["serde"] }
 rand = "0.8.5"
-serde = { version = "1.0.144", features = ["derive"]}
-serde_json = { version = "1.0.85" }
-sqlx = { version = "0.6.0", features = ["json", "chrono", "runtime-actix-rustls", "time", "postgres"] }
-time = "0.3.14"
+serde = { version = "1.0.164", features = ["derive"]}
+serde_json = { version = "1.0.99" }
+sqlx = { version = "0.6", features = ["json", "chrono", "runtime-actix-rustls", "time", "postgres"] }
+time = "0.3.19"
 
 [dev-dependencies]
 testcontainers = { version ="0.14.0"}
-actix-test = "0.1.0"
+actix-test = "0.1.1"
 actix-web = { version = "4", default_features = false, features = ["cookies", "secure-cookies", "macros"] }
 actix-session = { version = "0.7.1" }
