@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/chriswk/actix-session-sqlx-postgres/compare/v0.1.2...v0.1.3) - 2023-07-03
+
+### Fixed
+- Make connection Arced
+
 ## [0.1.2](https://github.com/chriswk/actix-session-sqlx-postgres/compare/v0.1.1...v0.1.2) - 2023-06-30
 
 ### Fixed
