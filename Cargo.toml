@@ -1,6 +1,6 @@
 [package]
 name = "actix-session-sqlx-postgres"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 authors = ["Christopher Kolstad <git@chriswk.no>", "Simon Hornby <liquidwicked64@gmail.com>"]
 description = "Actix Session Sqlx Postgres is a Sqlx Postgres implementation of the ActixSession Store trait"
