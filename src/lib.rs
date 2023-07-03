@@ -117,9 +117,9 @@ impl SqlxPostgresqlSessionStore {
         Self::builder(connection_string).build().await
     }
 
-    pub async fn from_pool(pool: Arc<Pool<Postgres>>) -> SqlxPostgresqlSessionStoreBuilder {
-        SqlxPostgresqlSessionStoreBuilder {
-            connection_data: ConnectionPool(pool),
+    pub fn from_pool(pool: Arc<Pool<Postgres>>) -> SqlxPostgresqlSessionStore {
+        SqlxPostgresqlSessionStore {
+            client_pool: pool,
             configuration: CacheConfiguration::default(),
         }
     }
