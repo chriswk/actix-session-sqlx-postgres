@@ -88,7 +88,7 @@ impl Default for CacheConfiguration {
 
 #[derive(Clone)]
 pub struct SqlxPostgresqlSessionStore {
-    client_pool: Pool<Postgres>,
+    client_pool: Arc<Pool<Postgres>>,
     configuration: CacheConfiguration,
 }
 
@@ -117,7 +117,7 @@ impl SqlxPostgresqlSessionStore {
         Self::builder(connection_string).build().await
     }
 
-    pub async fn from_pool(pool: Pool<Postgres>) -> SqlxPostgresqlSessionStoreBuilder {
+    pub async fn from_pool(pool: Arc<Pool<Postgres>>) -> SqlxPostgresqlSessionStoreBuilder {
         SqlxPostgresqlSessionStoreBuilder {
             connection_data: ConnectionPool(pool),
             configuration: CacheConfiguration::default(),
@@ -127,7 +127,7 @@ impl SqlxPostgresqlSessionStore {
 
 pub enum ConnectionData {
     ConnectionString(String),
-    ConnectionPool(Pool<Postgres>),
+    ConnectionPool(Arc<Pool<Postgres>>),
 }
 
 #[must_use]
@@ -145,7 +145,7 @@ impl SqlxPostgresqlSessionStoreBuilder {
                 .await
                 .map_err(Into::into)
                 .map(|pool| SqlxPostgresqlSessionStore {
-                    client_pool: pool,
+                    client_pool: Arc::new(pool),
                     configuration: self.configuration,
                 }),
             ConnectionPool(pool) => Ok(SqlxPostgresqlSessionStore {
@@ -164,7 +164,7 @@ impl SessionStore for SqlxPostgresqlSessionStore {
         let row =
             sqlx::query("SELECT session_state FROM sessions WHERE key = $1 AND expires > NOW()")
                 .bind(key)
-                .fetch_optional(&self.client_pool)
+                .fetch_optional(self.client_pool.as_ref())
                 .await
                 .map_err(Into::into)
                 .map_err(LoadError::Other)?;
@@ -195,7 +195,7 @@ impl SessionStore for SqlxPostgresqlSessionStore {
             .bind(cache_key)
             .bind(body)
             .bind(expires)
-            .execute(&self.client_pool)
+            .execute(self.client_pool.as_ref())
             .await
             .map_err(Into::into)
             .map_err(SaveError::Other)?;
@@ -217,7 +217,7 @@ impl SessionStore for SqlxPostgresqlSessionStore {
             .bind(body)
             .bind(new_expires)
             .bind(cache_key)
-            .execute(&self.client_pool)
+            .execute(self.client_pool.as_ref())
             .await
             .map_err(Into::into)
             .map_err(UpdateError::Other)?;
@@ -234,7 +234,7 @@ impl SessionStore for SqlxPostgresqlSessionStore {
         sqlx::query("UPDATE sessions SET expires = $1 WHERE key = $2")
             .bind(new_expires)
             .bind(key)
-            .execute(&self.client_pool)
+            .execute(self.client_pool.as_ref())
             .await
             .map_err(Into::into)
             .map_err(UpdateError::Other)?;
@@ -245,7 +245,7 @@ impl SessionStore for SqlxPostgresqlSessionStore {
         let key = (self.configuration.cache_keygen)(session_key.as_ref());
         sqlx::query("DELETE FROM sessions WHERE key = $1")
             .bind(key)
-            .execute(&self.client_pool)
+            .execute(self.client_pool.as_ref())
             .await
             .map_err(Into::into)
             .map_err(UpdateError::Other)?;
