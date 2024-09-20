@@ -3,9 +3,11 @@ use actix_session::storage::SessionStore;
 use actix_session_sqlx_postgres::SqlxPostgresqlSessionStore;
 use sqlx::postgres::PgPoolOptions;
 use std::collections::HashMap;
-use testcontainers::clients;
-use testcontainers::core::WaitFor;
-use testcontainers::images::generic;
+use testcontainers::{
+    core::{IntoContainerPort, WaitFor},
+    runners::AsyncRunner,
+    GenericImage, ImageExt,
+};
 
 async fn postgres_store(url: String) -> SqlxPostgresqlSessionStore {
     SqlxPostgresqlSessionStore::new(url).await.expect("")
@@ -13,20 +15,24 @@ async fn postgres_store(url: String) -> SqlxPostgresqlSessionStore {
 
 #[actix_web::test]
 async fn test_session_workflow() {
-    let docker = clients::Cli::default();
-    let postgres = docker.run(
-        generic::GenericImage::new("postgres", "15-alpine")
-            .with_wait_for(WaitFor::message_on_stderr(
-                "database system is ready to accept connections",
-            ))
-            .with_env_var("POSTGRES_DB", "sessions")
-            .with_env_var("POSTGRES_PASSWORD", "example")
-            .with_env_var("POSTGRES_HOST_AUTH_METHOD", "trust")
-            .with_env_var("POSTGRES_USER", "tests"),
-    );
+    let postgres = GenericImage::new("postgres", "15-alpine")
+        .with_exposed_port(5432.tcp())
+        .with_wait_for(WaitFor::message_on_stderr(
+            "database system is ready to accept connections",
+        ))
+        .with_env_var("POSTGRES_DB", "sessions")
+        .with_env_var("POSTGRES_PASSWORD", "example")
+        .with_env_var("POSTGRES_HOST_AUTH_METHOD", "trust")
+        .with_env_var("POSTGRES_USER", "tests")
+        .start()
+        .await
+        .expect("Postgres started");
     let url = format!(
         "postgres://tests:example@localhost:{}/sessions",
-        postgres.get_host_port_ipv4(5432)
+        postgres
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("Failed to get port")
     );
 
     let postgres_store = postgres_store(url.clone()).await;
