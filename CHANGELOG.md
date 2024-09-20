@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/chriswk/actix-session-sqlx-postgres/compare/v0.2.0...v0.2.1) - 2024-09-20
+
+### Other
+
+- Update cargo file
+- Updated to latest actix-session and sqlx
+- release
+
 ## [0.1.4](https://github.com/chriswk/actix-session-sqlx-postgres/compare/v0.1.3...v0.1.4) - 2023-07-03
 
 ### Added
