@@ -1,7 +1,7 @@
 use crate::ConnectionData::{ConnectionPool, ConnectionString};
 use actix_session::storage::{LoadError, SaveError, SessionKey, SessionStore, UpdateError};
 use chrono::Utc;
-use rand::{distributions::Alphanumeric, rngs::OsRng, Rng as _};
+use rand::distr::{Alphanumeric, SampleString};
 use serde_json::{self, Value};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{Pool, Postgres, Row};
@@ -92,15 +92,14 @@ pub struct SqlxPostgresqlSessionStore {
     configuration: CacheConfiguration,
 }
 
+/// Session key generation routine that follows [OWASP recommendations].
+///
+/// [OWASP recommendations]: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html#session-id-entropy
 fn generate_session_key() -> SessionKey {
-    let value = std::iter::repeat(())
-        .map(|()| OsRng.sample(Alphanumeric))
-        .take(64)
-        .collect::<Vec<_>>();
-
-    // These unwraps will never panic because pre-conditions are always verified
-    // (i.e. length and character set)
-    String::from_utf8(value).unwrap().try_into().unwrap()
+    Alphanumeric
+        .sample_string(&mut rand::rng(), 64)
+        .try_into()
+        .expect("generated string should be within size range for a session key")
 }
 
 impl SqlxPostgresqlSessionStore {
